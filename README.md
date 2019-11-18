@@ -1,35 +1,57 @@
-# dht
+# Bubble Detector
 
-A Particle project named dht
+Particle Photon based fermentation monitoring.
 
-## Welcome to your project!
+### Have you ever wanted to know much alcohol is in your homebrew?
 
-Every new Particle project is composed of 3 important elements that you'll see have been created in your project directory for dht.
+Great!  Go buy a [Hydrometer](https://en.wikipedia.org/wiki/Hydrometer) for a couple bucks and take some simple measurements to get a nice accurate answer.
 
-#### ```/src``` folder:  
-This is the source folder that contains the firmware files for your project. It should *not* be renamed. 
-Anything that is in this folder when you compile your project will be sent to our compile service and compiled into a firmware binary for the Particle device that you have targeted.
 
-If your application contains multiple files, they should all be included in the `src` folder. If your firmware depends on Particle libraries, those dependencies are specified in the `project.properties` file referenced below.
+### Have you ever wanted to know much alcohol is in your homebrew in an overly complicated and less reliable way?
 
-#### ```.ino``` file:
-This file is the firmware that will run as the primary application on your Particle device. It contains a `setup()` and `loop()` function, and can be written in Wiring or C/C++. For more information about using the Particle firmware API to create firmware for your Particle device, refer to the [Firmware Reference](https://docs.particle.io/reference/firmware/) section of the Particle documentation.
+Well, you've come to the right place!  This project is not really about a practical solution to an unsolved problem, but a test bed on what can be done with different sensors and IoT devices.
 
-#### ```project.properties``` file:  
-This is the file that specifies the name and version number of the libraries that your project depends on. Dependencies are added automatically to your `project.properties` file when you add a library to a project using the `particle library add` command in the CLI or add a library in the Desktop IDE.
+### Goals
+- Detect CO<sub>2</sub> produced during fermentation.
+- Accurately measure the volume of CO<sub>2</sub> emitted.
+- Stream results to a server for more detailed processing and analysis.
 
-## Adding additional files to your project
+### Version 1.0
 
-#### Projects with multiple sources
-If you would like add additional files to your application, they should be added to the `/src` folder. All files in the `/src` folder will be sent to the Particle Cloud to produce a compiled binary.
+I currently use the following style of airlock.
 
-#### Projects with external libraries
-If your project includes a library that has not been registered in the Particle libraries system, you should create a new folder named `/lib/<libraryname>/src` under `/<project dir>` and add the `.h`, `.cpp` & `library.properties` files for your library there. Read the [Firmware Libraries guide](https://docs.particle.io/guide/tools-and-features/libraries/) for more details on how to develop libraries. Note that all contents of the `/lib` folder and subfolders will also be sent to the Cloud for compilation.
+![Airlock](https://cdn.shortpixel.ai/client/q_glossy,ret_img,w_467/https://thesmartshoponline.com/wp-content/uploads/2018/07/31HemU2Bte0L.jpg)
 
-## Compiling your project
+While I have found numerous posts online where people have been able to detect bubbles in the U-Trap with optical sensors, I had little luck with this.
 
-When you're ready to compile your project, make sure you have the correct Particle device target selected and run `particle compile <platform>` in the CLI or click the Compile button in the Desktop IDE. The following files in your project folder will be sent to the compile service:
+Instead, my first attempt went with what I thought would be a reliable (if short lived) design.  Two electrodes would form a broken circuit slightly above the static water level.  As a bubble passed through the airlock, the water level would rise temporarily completing the circuit.
 
-- Everything in the `/src` folder, including your `.ino` application file
-- The `project.properties` file for your project
-- Any libraries stored under `lib/<libraryname>/src`
+####Pros
+- Bubbles could be detected
+- False positives were very low
+- Simple code and design
+
+####Cons
+- Low accuracy ( approx 40% of bubbles were missed )
+- High corrosion of electrodes
+- Leaky and potential for dropping metallic corrosion into brew
+
+### Version 2.0
+
+![Sound Sensor](https://osoyoo.com/wp-content/uploads/2017/07/soundsensor-pinoutput-1.jpg)
+
+I switched to a microphone based sensor.  While this initially seemed a bad idea due to ambient noise, I found that these sensors are kinda shitty at picking up any kind of noise that isn't extremely close, sharp, and loud.  So it is kind of perfect for detecting a bubble if you put it right in the neck of the airlock.
+
+Initially, I tried to use the digital output signal, but the potentiometer wasn't able to reliably signal bubbles, so I used the analog output instead.
+
+Wiring this up and watching the analog values showed that I now had the ability to reliably detect bubbles, but it also highlighted a new issue.  I had hoped to just set a threshold value for ambient noise and count any signals above that level, but a bubble registered as a series of ascending and then descending values.  A naive count would usually register a bubble as 10-15 times.  I was able to work around this by only allowing a bubble to be counted every .5 secs.  This worked, mostly, but was obviously an ugly and error prone hack.
+
+Finally, in version 2.0, I was doing all the processing on the Particle board itself.  So it would count up bubbles, keep an average for the past minute, and display it on a basic OLED screen.  Kinda neat, but it lost everything if it lost power, and it provided no long term storage of data which would allow me to track fermatation rates over time or more complex analysis of the data.
+
+### Version 3.0
+
+This version actually simplified the arduino code greatly.  Instead of tracking everything on the board and using it to try and filter out bubbles, I just piped all the analog values up to a server running [MQTT](http://mqtt.org/).  Then I could process the raw data with any code I wanted, store it all if I wanted, and send it off to other APIs or webpages.
+
+I set up a python subscriber of the MQTT channel and used [NumPy](https://numpy.org/) to do some much better data analysis that could actually detect what a bubble analog signature looked like and didn't just pick the first value above a base threshold.  This actually gave MUCH better results.
+
+Check out the python code [here](https://github.com/jyoung360/bubbler_python) or the [Bubbler Website](http://34.217.20.120:8080/)
